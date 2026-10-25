@@ -4,8 +4,7 @@ API REST para registrar e acompanhar chamados de suporte. Solicitantes abrem cha
 
 Trabalho do curso Técnico em Desenvolvimento de Sistemas (SENAI).
 
-**Autor(a):** [seu nome]
-**Turma:** [sua turma]
+**Autor(a):** Kely André
 
 ## Tecnologias
 
