@@ -4,7 +4,8 @@ API REST para registrar e acompanhar chamados de suporte. Solicitantes abrem cha
 
 Trabalho do curso Técnico em Desenvolvimento de Sistemas (SENAI).
 
-**Autor(a):** Kely André
+**Autor(a):** [seu nome]
+**Turma:** [sua turma]
 
 ## Tecnologias
 
@@ -130,11 +131,13 @@ Enums: `TipoPessoa`, `Prioridade` (`BAIXA`, `MEDIA`, `ALTA`, `CRITICA`) e `Statu
 ### Exemplos de corpo das requisições
 
 Cadastrar pessoa:
+
 ```json
 { "nome": "Maria", "email": "maria@email.com", "tipo": "SOLICITANTE" }
 ```
 
 Abrir chamado (a prioridade é opcional e assume `MEDIA`):
+
 ```json
 {
   "titulo": "Internet caiu",
@@ -146,7 +149,9 @@ Abrir chamado (a prioridade é opcional e assume `MEDIA`):
 ```
 
 Designar técnico: `{ "tecnicoId": 3 }`
+
 Mudar status: `{ "status": "RESOLVIDO" }`
+
 Comentar: `{ "autorId": 1, "texto": "Ainda sem internet aqui" }`
 
 ### Códigos de resposta de erro
@@ -218,5 +223,4 @@ Para repetir os testes do zero, limpe o banco com:
 
 ```bash
 npx prisma migrate reset
-```#   s i s t e m a - d e - c h a m a d o s  
- 
+```
