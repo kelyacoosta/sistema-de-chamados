@@ -1,0 +1,635 @@
+### ============================================================
+### TESTES - SISTEMA DE CHAMADOS
+### Requer a extensao "REST Client" (humao.rest-client) no VS Code.
+### Clique em "Send Request" acima de cada bloco, EM ORDEM.
+### Os blocos com "# @name" guardam a resposta para os proximos usarem.
+### ============================================================
+
+@baseUrl = http://localhost:3000
+@json = application/json
+
+# Ajuste se os ids do seu banco forem diferentes (veja GET /pessoas)
+@maria = 1
+@carlos = 3
+
+
+### ============================================================
+### 1. PESSOAS
+### ============================================================
+
+### 1.1 Listar pessoas (confira os ids)
+GET {{baseUrl}}/pessoas
+
+
+### 1.2 Criar solicitante Ana (guarda o id)
+# @name ana
+POST {{baseUrl}}/pessoas
+Content-Type: {{json}}
+
+{
+  "nome": "Ana",
+  "email": "ana@email.com",
+  "tipo": "SOLICITANTE"
+}
+
+
+### 1.3 E-mail duplicado (esperado 409)
+POST {{baseUrl}}/pessoas
+Content-Type: {{json}}
+
+{
+  "nome": "Ana Clone",
+  "email": "ana@email.com",
+  "tipo": "SOLICITANTE"
+}
+
+
+### 1.4 E-mail invalido (esperado 400)
+POST {{baseUrl}}/pessoas
+Content-Type: {{json}}
+
+{
+  "nome": "Teste",
+  "email": "abc",
+  "tipo": "SOLICITANTE"
+}
+
+
+### 1.5 Tipo invalido (esperado 400)
+POST {{baseUrl}}/pessoas
+Content-Type: {{json}}
+
+{
+  "nome": "Teste",
+  "email": "teste@email.com",
+  "tipo": "GERENTE"
+}
+
+
+### 1.6 Buscar pessoa inexistente (esperado 404)
+GET {{baseUrl}}/pessoas/9999
+
+
+### 1.7 Criar tecnico Diego (usado no teste do limite de 5)
+# @name diego
+POST {{baseUrl}}/pessoas
+Content-Type: {{json}}
+
+{
+  "nome": "Diego",
+  "email": "diego@email.com",
+  "tipo": "TECNICO"
+}
+
+
+### ============================================================
+### 2. TIPOS DE PROBLEMA
+### ============================================================
+
+### 2.1 Listar
+GET {{baseUrl}}/tipos-problema
+
+
+### 2.2 Nome duplicado (esperado 409, se "Rede" ja existe)
+POST {{baseUrl}}/tipos-problema
+Content-Type: {{json}}
+
+{
+  "nome": "Rede"
+}
+
+
+### 2.3 Criar tipo que sera desativado
+# @name tipoDesativado
+POST {{baseUrl}}/tipos-problema
+Content-Type: {{json}}
+
+{
+  "nome": "Tipo Desativado"
+}
+
+
+### 2.4 Desativar o tipo
+PATCH {{baseUrl}}/tipos-problema/{{tipoDesativado.response.body.id}}
+Content-Type: {{json}}
+
+{
+  "ativo": false
+}
+
+
+### 2.5 Abrir chamado em tipo desativado (esperado 422)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Chamado tipo desativado",
+  "descricao": "Nao deveria abrir neste tipo de problema",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": {{tipoDesativado.response.body.id}}
+}
+
+
+### ============================================================
+### 3. ABRIR CHAMADOS (validacoes)
+### ============================================================
+
+### 3.1 Abrir chamado valido, sem prioridade (esperado ABERTO, MEDIA, tecnicoId null)
+# @name chamado
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Internet caiu",
+  "descricao": "A internet do setor financeiro parou de funcionar",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+
+### 3.2 Titulo curto (esperado 400)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "abc",
+  "descricao": "A internet do setor financeiro parou",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+
+### 3.3 Descricao curta (esperado 400)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Titulo valido",
+  "descricao": "curta",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+
+### 3.4 Prioridade invalida (esperado 400)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Titulo valido",
+  "descricao": "Descricao com mais de dez caracteres",
+  "prioridade": "URGENTE",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+
+### 3.5 Prioridade CRITICA informada (esperado prioridade CRITICA)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Servidor fora do ar",
+  "descricao": "O servidor principal nao responde desde cedo",
+  "prioridade": "CRITICA",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+
+### 3.6 Tecnico tentando abrir chamado (esperado 422)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Teste tecnico",
+  "descricao": "Um tecnico nao pode abrir chamado",
+  "solicitanteId": {{carlos}},
+  "tipoProblemaId": 1
+}
+
+
+### 3.7 Solicitante inexistente (esperado 404)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Teste inexistente",
+  "descricao": "Solicitante que nao existe no banco",
+  "solicitanteId": 9999,
+  "tipoProblemaId": 1
+}
+
+
+### ============================================================
+### 4. DESIGNAR TECNICO E STATUS (usa o chamado do 3.1)
+### ============================================================
+
+### 4.1 Transicao proibida ABERTO -> RESOLVIDO (esperado 422)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "RESOLVIDO"
+}
+
+
+### 4.2 Iniciar atendimento sem tecnico (esperado 422)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "EM_ATENDIMENTO"
+}
+
+
+### 4.3 Designar solicitante como tecnico (esperado 422)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{
+  "tecnicoId": {{maria}}
+}
+
+
+### 4.4 Designar Carlos (esperado status EM_ATENDIMENTO automaticamente)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{
+  "tecnicoId": {{carlos}}
+}
+
+
+### 4.5 Pular para FECHADO (esperado 422)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "FECHADO"
+}
+
+
+### 4.6 Resolver (esperado RESOLVIDO com resolvidoEm preenchido)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "RESOLVIDO"
+}
+
+
+### 4.7 Trocar tecnico de chamado RESOLVIDO (esperado 422)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{
+  "tecnicoId": {{diego.response.body.id}}
+}
+
+
+### 4.8 Reabrir (esperado EM_ATENDIMENTO e resolvidoEm null)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "EM_ATENDIMENTO"
+}
+
+
+### ============================================================
+### 5. COMENTARIOS (chamado EM_ATENDIMENTO)
+### ============================================================
+
+### 5.1 Maria (solicitante) comenta (esperado 201)
+POST {{baseUrl}}/chamados/{{chamado.response.body.id}}/comentarios
+Content-Type: {{json}}
+
+{
+  "autorId": {{maria}},
+  "texto": "Ainda sem internet aqui"
+}
+
+
+### 5.2 Carlos (tecnico responsavel) comenta (esperado 201)
+POST {{baseUrl}}/chamados/{{chamado.response.body.id}}/comentarios
+Content-Type: {{json}}
+
+{
+  "autorId": {{carlos}},
+  "texto": "Estou verificando o roteador"
+}
+
+
+### 5.3 Comentario so com espacos (esperado 400)
+POST {{baseUrl}}/chamados/{{chamado.response.body.id}}/comentarios
+Content-Type: {{json}}
+
+{
+  "autorId": {{maria}},
+  "texto": "   "
+}
+
+
+### 5.4 Ana (terceira pessoa) tenta comentar (esperado 403)
+POST {{baseUrl}}/chamados/{{chamado.response.body.id}}/comentarios
+Content-Type: {{json}}
+
+{
+  "autorId": {{ana.response.body.id}},
+  "texto": "Posso comentar?"
+}
+
+
+### 5.5 Ver o chamado com toda a conversa
+GET {{baseUrl}}/chamados/{{chamado.response.body.id}}
+
+
+### 5.6 Nao existe edicao de comentario (esperado 404)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/comentarios/1
+Content-Type: {{json}}
+
+{
+  "texto": "editado"
+}
+
+
+### 5.7 Nao existe exclusao de comentario (esperado 404)
+DELETE {{baseUrl}}/chamados/{{chamado.response.body.id}}/comentarios/1
+
+
+### ============================================================
+### 6. REMOCAO PROTEGIDA (regras 4 e 7)
+### ============================================================
+
+### 6.1 Remover Maria, que ja abriu chamado (esperado 409)
+DELETE {{baseUrl}}/pessoas/{{maria}}
+
+
+### 6.2 Remover tipo Rede, ja usado (esperado 409)
+DELETE {{baseUrl}}/tipos-problema/1
+
+
+### 6.3 Remover tipo sem uso (esperado 200)
+DELETE {{baseUrl}}/tipos-problema/{{tipoDesativado.response.body.id}}
+
+
+### ============================================================
+### 7. CHAMADO ENCERRADO (fechar e tentar alterar)
+### ============================================================
+
+### 7.1 Resolver de novo
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "RESOLVIDO"
+}
+
+
+### 7.2 Fechar
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "FECHADO"
+}
+
+
+### 7.3 Reabrir chamado FECHADO (esperado 422)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "EM_ATENDIMENTO"
+}
+
+
+### 7.4 Comentar em chamado FECHADO (esperado 422)
+POST {{baseUrl}}/chamados/{{chamado.response.body.id}}/comentarios
+Content-Type: {{json}}
+
+{
+  "autorId": {{maria}},
+  "texto": "Comentando depois de fechar"
+}
+
+
+### 7.5 Designar tecnico em chamado FECHADO (esperado 422)
+PATCH {{baseUrl}}/chamados/{{chamado.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{
+  "tecnicoId": {{carlos}}
+}
+
+
+### ============================================================
+### 8. CANCELAMENTO
+### ============================================================
+
+### 8.1 Abrir chamado para cancelar
+# @name paraCancelar
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Chamado a cancelar",
+  "descricao": "Este chamado sera cancelado logo em seguida",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+
+### 8.2 Cancelar chamado ABERTO (esperado CANCELADO)
+PATCH {{baseUrl}}/chamados/{{paraCancelar.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "CANCELADO"
+}
+
+
+### 8.3 Alterar chamado CANCELADO (esperado 422)
+PATCH {{baseUrl}}/chamados/{{paraCancelar.response.body.id}}/status
+Content-Type: {{json}}
+
+{
+  "status": "EM_ATENDIMENTO"
+}
+
+
+### 8.4 Comentar em chamado CANCELADO (esperado 422)
+POST {{baseUrl}}/chamados/{{paraCancelar.response.body.id}}/comentarios
+Content-Type: {{json}}
+
+{
+  "autorId": {{maria}},
+  "texto": "Comentando em chamado cancelado"
+}
+
+
+### ============================================================
+### 9. PESSOA INATIVA (regra 3)
+### ============================================================
+
+### 9.1 Desativar Ana
+PATCH {{baseUrl}}/pessoas/{{ana.response.body.id}}
+Content-Type: {{json}}
+
+{
+  "ativo": false
+}
+
+
+### 9.2 Ana inativa tenta abrir chamado (esperado 422)
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Ana inativa",
+  "descricao": "Pessoa inativa nao pode abrir chamado",
+  "solicitanteId": {{ana.response.body.id}},
+  "tipoProblemaId": 1
+}
+
+
+### ============================================================
+### 10. LIMITE DE 5 CHAMADOS EM ATENDIMENTO (tecnico Diego)
+### Execute as 6 aberturas e depois as 6 designacoes, em ordem.
+### ============================================================
+
+### 10.1 Abrir chamado 1 de 6
+# @name l1
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Limite chamado 1",
+  "descricao": "Chamado para testar o limite de atendimentos",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+### 10.2 Abrir chamado 2 de 6
+# @name l2
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Limite chamado 2",
+  "descricao": "Chamado para testar o limite de atendimentos",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+### 10.3 Abrir chamado 3 de 6
+# @name l3
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Limite chamado 3",
+  "descricao": "Chamado para testar o limite de atendimentos",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+### 10.4 Abrir chamado 4 de 6
+# @name l4
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Limite chamado 4",
+  "descricao": "Chamado para testar o limite de atendimentos",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+### 10.5 Abrir chamado 5 de 6
+# @name l5
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Limite chamado 5",
+  "descricao": "Chamado para testar o limite de atendimentos",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+### 10.6 Abrir chamado 6 de 6
+# @name l6
+POST {{baseUrl}}/chamados
+Content-Type: {{json}}
+
+{
+  "titulo": "Limite chamado 6",
+  "descricao": "Chamado para testar o limite de atendimentos",
+  "solicitanteId": {{maria}},
+  "tipoProblemaId": 1
+}
+
+
+### 10.7 Designar Diego no 1 (ok)
+PATCH {{baseUrl}}/chamados/{{l1.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{ "tecnicoId": {{diego.response.body.id}} }
+
+### 10.8 Designar Diego no 2 (ok)
+PATCH {{baseUrl}}/chamados/{{l2.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{ "tecnicoId": {{diego.response.body.id}} }
+
+### 10.9 Designar Diego no 3 (ok)
+PATCH {{baseUrl}}/chamados/{{l3.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{ "tecnicoId": {{diego.response.body.id}} }
+
+### 10.10 Designar Diego no 4 (ok)
+PATCH {{baseUrl}}/chamados/{{l4.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{ "tecnicoId": {{diego.response.body.id}} }
+
+### 10.11 Designar Diego no 5 (ok)
+PATCH {{baseUrl}}/chamados/{{l5.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{ "tecnicoId": {{diego.response.body.id}} }
+
+### 10.12 Designar Diego no 6 (esperado 422: limite de 5)
+PATCH {{baseUrl}}/chamados/{{l6.response.body.id}}/tecnico
+Content-Type: {{json}}
+
+{ "tecnicoId": {{diego.response.body.id}} }
+
+
+### ============================================================
+### 11. FILTROS DA LISTAGEM
+### ============================================================
+
+### 11.1 Todos
+GET {{baseUrl}}/chamados
+
+### 11.2 Por status
+GET {{baseUrl}}/chamados?status=EM_ATENDIMENTO
+
+### 11.3 Por prioridade
+GET {{baseUrl}}/chamados?prioridade=CRITICA
+
+### 11.4 Por tipo de problema
+GET {{baseUrl}}/chamados?tipoProblemaId=1
+
+### 11.5 Por tecnico
+GET {{baseUrl}}/chamados?tecnicoId={{diego.response.body.id}}
+
+### 11.6 Combinando filtros
+GET {{baseUrl}}/chamados?status=EM_ATENDIMENTO&tecnicoId={{diego.response.body.id}}
+
+### 11.7 Status invalido (esperado 400)
+GET {{baseUrl}}/chamados?status=ABC
